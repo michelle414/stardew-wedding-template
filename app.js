@@ -145,6 +145,7 @@ if (!reducedMotion.matches) {
 const music = document.querySelector('#wedding-music')
 const musicButton = document.querySelector('#music-toggle')
 const audioStatus = document.querySelector('#audio-status')
+
 let fadeFrame
 let resumeAfterVisibility = false
 let fileUnavailable = false
@@ -155,34 +156,59 @@ let synthTimer
 let synthStopTimer
 let noteIndex = 0
 
-const synthMelody = [261.63, 329.63, 392, 523.25, 392, 329.63, 293.66, 349.23, 440, 587.33, 440, 349.23]
+// 星露谷风格的备用像素旋律
+const synthMelody = [
+  261.63, 329.63, 392, 523.25,
+  392, 329.63, 293.66, 349.23,
+  440, 587.33, 440, 349.23,
+]
 
 function setMusicState(playing) {
   musicButton.classList.toggle('playing', playing)
   musicButton.setAttribute('aria-pressed', String(playing))
-  musicButton.setAttribute('aria-label', playing ? '暂停背景音乐' : '播放背景音乐')
-  audioStatus.textContent = playing ? '背景音乐正在播放' : '背景音乐已暂停'
+  musicButton.setAttribute(
+    'aria-label',
+    playing ? '暂停背景音乐' : '播放背景音乐',
+  )
+
+  audioStatus.textContent = playing
+    ? '背景音乐正在播放'
+    : '背景音乐已暂停'
 }
 
 function fadeVolume(target, duration = 650) {
   window.cancelAnimationFrame(fadeFrame)
+
   const start = music.volume
   const startedAt = performance.now()
+
   return new Promise((resolve) => {
     const step = (now) => {
       const progress = Math.min(1, (now - startedAt) / duration)
+
       music.volume = start + (target - start) * progress
-      if (progress < 1) fadeFrame = window.requestAnimationFrame(step)
-      else resolve()
+
+      if (progress < 1) {
+        fadeFrame = window.requestAnimationFrame(step)
+      } else {
+        resolve()
+      }
     }
+
     fadeFrame = window.requestAnimationFrame(step)
   })
 }
 
 function ensureSynth() {
-  const AudioContextClass = window.AudioContext || window.webkitAudioContext
-  if (!AudioContextClass) throw new Error('Web Audio API is unavailable')
+  const AudioContextClass =
+    window.AudioContext || window.webkitAudioContext
+
+  if (!AudioContextClass) {
+    throw new Error('Web Audio API is unavailable')
+  }
+
   synthContext ||= new AudioContextClass()
+
   if (!synthMaster) {
     synthMaster = synthContext.createGain()
     synthMaster.gain.value = 0.0001
@@ -193,54 +219,108 @@ function ensureSynth() {
 function playSynthNote(frequency) {
   const oscillator = synthContext.createOscillator()
   const gain = synthContext.createGain()
+
   oscillator.type = 'square'
   oscillator.frequency.value = frequency
+
   gain.gain.setValueAtTime(0.8, synthContext.currentTime)
-  gain.gain.exponentialRampToValueAtTime(0.001, synthContext.currentTime + 0.22)
+  gain.gain.exponentialRampToValueAtTime(
+    0.001,
+    synthContext.currentTime + 0.22,
+  )
+
   oscillator.connect(gain).connect(synthMaster)
+
   oscillator.start()
   oscillator.stop(synthContext.currentTime + 0.23)
 }
 
 async function startSynthMusic() {
   if (synthTimer) return
+
   try {
     ensureSynth()
+
     window.clearTimeout(synthStopTimer)
+
     await synthContext.resume()
-    synthMaster.gain.cancelScheduledValues(synthContext.currentTime)
-    synthMaster.gain.setValueAtTime(Math.max(0.0001, synthMaster.gain.value), synthContext.currentTime)
-    synthMaster.gain.linearRampToValueAtTime(0.2, synthContext.currentTime + 0.55)
+
+    synthMaster.gain.cancelScheduledValues(
+      synthContext.currentTime,
+    )
+
+    synthMaster.gain.setValueAtTime(
+      Math.max(0.0001, synthMaster.gain.value),
+      synthContext.currentTime,
+    )
+
+    synthMaster.gain.linearRampToValueAtTime(
+      0.2,
+      synthContext.currentTime + 0.55,
+    )
+
     playSynthNote(synthMelody[noteIndex])
+
     synthTimer = window.setInterval(() => {
       noteIndex = (noteIndex + 1) % synthMelody.length
       playSynthNote(synthMelody[noteIndex])
     }, 310)
+
     currentMusicMode = 'synth'
+
     setMusicState(true)
-    audioStatus.textContent = '未检测到背景音乐文件，正在播放合成像素旋律'
+
+    audioStatus.textContent =
+      '正在播放星露谷像素旋律'
   } catch {
     currentMusicMode = undefined
     setMusicState(false)
-    audioStatus.textContent = '浏览器暂未允许播放背景音乐，请检查静音设置后重试'
+
+    audioStatus.textContent =
+      '请点击页面开启背景音乐'
   }
 }
 
 function stopSynthMusic() {
   window.clearInterval(synthTimer)
   synthTimer = undefined
+
   if (!synthContext || !synthMaster) return
-  synthMaster.gain.cancelScheduledValues(synthContext.currentTime)
-  synthMaster.gain.setValueAtTime(Math.max(0.0001, synthMaster.gain.value), synthContext.currentTime)
-  synthMaster.gain.exponentialRampToValueAtTime(0.0001, synthContext.currentTime + 0.28)
-  synthStopTimer = window.setTimeout(() => synthContext.suspend(), 320)
+
+  synthMaster.gain.cancelScheduledValues(
+    synthContext.currentTime,
+  )
+
+  synthMaster.gain.setValueAtTime(
+    Math.max(0.0001, synthMaster.gain.value),
+    synthContext.currentTime,
+  )
+
+  synthMaster.gain.exponentialRampToValueAtTime(
+    0.0001,
+    synthContext.currentTime + 0.28,
+  )
+
+  synthStopTimer = window.setTimeout(
+    () => synthContext.suspend(),
+    320,
+  )
 }
 
 function isMusicPlaying() {
-  return currentMusicMode === 'synth' ? Boolean(synthTimer) : currentMusicMode === 'file' && !music.paused
+  if (currentMusicMode === 'synth') {
+    return Boolean(synthTimer)
+  }
+
+  return (
+    currentMusicMode === 'file' &&
+    !music.paused
+  )
 }
 
 async function playMusic() {
+  if (isMusicPlaying()) return
+
   if (fileUnavailable) {
     await startSynthMusic()
     return
@@ -248,18 +328,30 @@ async function playMusic() {
 
   try {
     music.volume = 0
+
     await music.play()
+
     currentMusicMode = 'file'
+
     setMusicState(true)
+
     await fadeVolume(0.2)
   } catch (error) {
-    if (music.error || error?.name === 'NotSupportedError') {
+    // 如果 MP3 文件本身不可用，使用备用像素音乐
+    if (
+      music.error ||
+      error?.name === 'NotSupportedError'
+    ) {
       fileUnavailable = true
       await startSynthMusic()
       return
     }
+
+    // 微信/浏览器因为自动播放策略拦截
     setMusicState(false)
-    audioStatus.textContent = '浏览器暂未允许播放背景音乐'
+
+    audioStatus.textContent =
+      '点击屏幕开启背景音乐'
   }
 }
 
@@ -269,31 +361,100 @@ async function pauseMusic() {
     setMusicState(false)
     return
   }
-  await fadeVolume(0, 320)
-  music.pause()
+
+  if (!music.paused) {
+    await fadeVolume(0, 320)
+    music.pause()
+  }
+
   setMusicState(false)
 }
 
-music.addEventListener('canplay', () => { fileUnavailable = false }, { once: true })
+music.addEventListener(
+  'canplay',
+  () => {
+    fileUnavailable = false
+  },
+  { once: true },
+)
+
 music.addEventListener('error', () => {
   fileUnavailable = true
-  if (currentMusicMode === 'file') startSynthMusic()
-})
-musicButton.addEventListener('click', () => {
-  isMusicPlaying() ? pauseMusic() : playMusic()
+
+  if (currentMusicMode === 'file') {
+    startSynthMusic()
+  }
 })
 
+// 右下角音乐按钮
+musicButton.addEventListener('click', (event) => {
+  event.stopPropagation()
+
+  if (isMusicPlaying()) {
+    pauseMusic()
+  } else {
+    playMusic()
+  }
+})
+
+// ========================================
+// 自动播放
+// ========================================
+
+// 页面打开后立即尝试播放
 window.setTimeout(() => {
   playMusic()
-}, 0)
+}, 100)
 
-document.addEventListener('click', () => {
-  if (!isMusicPlaying()) playMusic()
-}, { once: true })
+// 微信第一次触摸页面时立即播放
+const unlockMusic = () => {
+  if (!isMusicPlaying()) {
+    playMusic()
+  }
 
+  // 只需要第一次触摸
+  document.removeEventListener(
+    'touchstart',
+    unlockMusic,
+  )
+
+  document.removeEventListener(
+    'pointerdown',
+    unlockMusic,
+  )
+
+  document.removeEventListener(
+    'click',
+    unlockMusic,
+  )
+}
+
+// 微信手机端最重要
+document.addEventListener(
+  'touchstart',
+  unlockMusic,
+  { passive: true },
+)
+
+// 兼容部分微信环境
+document.addEventListener(
+  'pointerdown',
+  unlockMusic,
+  { passive: true },
+)
+
+// 兼容电脑浏览器
+document.addEventListener(
+  'click',
+  unlockMusic,
+  { passive: true },
+)
+
+// 页面从后台回来
 document.addEventListener('visibilitychange', () => {
   if (document.hidden) {
     resumeAfterVisibility = isMusicPlaying()
+
     if (resumeAfterVisibility) {
       music.pause()
       stopSynthMusic()
@@ -305,6 +466,7 @@ document.addEventListener('visibilitychange', () => {
   }
 })
 
+// 离开页面
 window.addEventListener('pagehide', () => {
   music.pause()
   stopSynthMusic()
