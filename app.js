@@ -279,8 +279,17 @@ music.addEventListener('error', () => {
   fileUnavailable = true
   if (currentMusicMode === 'file') startSynthMusic()
 })
-musicButton.addEventListener('click', () => { isMusicPlaying() ? pauseMusic() : playMusic() })
-window.setTimeout(() => { playMusic() }, 0)
+musicButton.addEventListener('click', () => {
+  isMusicPlaying() ? pauseMusic() : playMusic()
+})
+
+window.setTimeout(() => {
+  playMusic()
+}, 0)
+
+document.addEventListener('click', () => {
+  if (!isMusicPlaying()) playMusic()
+}, { once: true })
 
 document.addEventListener('visibilitychange', () => {
   if (document.hidden) {
