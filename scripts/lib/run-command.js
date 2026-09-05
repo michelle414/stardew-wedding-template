@@ -11,7 +11,7 @@ export function runCommand(command, args, options = {}) {
   return new Promise((resolve, reject) => {
     const mirrorOutput = options.stdio === 'inherit'
     const stdio = mirrorOutput ? ['inherit', 'pipe', 'pipe'] : options.stdio
-    const child = spawn(executableFor(command), finalArgs, { ...options, stdio, shell: false })
+    const child = spawn(executableFor(command), finalArgs, { ...options, stdio, shell: process.platform === 'win32' })
     let stdout = ''
     let stderr = ''
     child.stdout?.on('data', (chunk) => {
